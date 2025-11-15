@@ -1,0 +1,1295 @@
+<?php
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', 'logs/php_errors.log');
+
+if (ob_get_level()) ob_end_clean();
+
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header('Location: index.php');
+    exit;
+}
+
+require __DIR__ . '/config/conn.php';
+
+$userId = (int) $_SESSION['user_id'];
+$username = $_SESSION['username'] ?? '';
+$firstName = $_SESSION['first_name'] ?? '';
+$idDivisi = $_SESSION['id_divisi'] ?? null;
+
+$divisiName = '';
+if ($idDivisi) {
+    $stmt = $conn->prepare('SELECT divisi FROM divisi WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $idDivisi]);
+    $row = $stmt->fetch();
+    $divisiName = $row['divisi'] ?? '';
+}
+
+// full access admin(it)
+$isAdminAllAccess = false;
+
+// Debug 
+error_log("Auth Debug - Username: " . $username . ", Divisi: " . $divisiName);
+error_log("Auth Debug - Lowercase comparison - Username: " . strtolower(trim($username)) . ", Divisi: " . strtolower(trim($divisiName)));
+
+if (strcasecmp(trim($username), 'it') === 0 && strcasecmp(trim($divisiName), 'it') === 0) {
+    $isAdminAllAccess = true;
+    error_log("Auth Debug - Admin access granted");
+} else {
+    error_log("Auth Debug - Admin access denied");
+}
+
+$viewMode = isset($_GET['view']) && $_GET['view'] === 'list' ? 'list' : 'grid';
+
+$activeDivision = isset($_GET['division']) ? (int)$_GET['division'] : $idDivisi;
+
+// Fetch all (admin)
+$allDivisions = [];
+if ($isAdminAllAccess) {
+    $divQuery = $conn->query('SELECT id, divisi as name FROM divisi ORDER BY divisi');
+    $allDivisions = $divQuery->fetchAll(PDO::FETCH_ASSOC);
+}
+
+$modes = [];
+if ($isAdminAllAccess) {
+    $modeQuery = $conn->query('
+        SELECT m.id, m.mode as name, m.description, m.status,
+               d.divisi as division_name, d.id as division_id
+        FROM mode m
+        JOIN divisi d ON m.id_divisi = d.id
+        WHERE m.status = "active"
+        ORDER BY d.divisi, m.mode
+    ');
+    $modes = $modeQuery->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $modeQuery = $conn->prepare('
+        SELECT m.id, m.mode as name, m.description, m.status,
+               d.divisi as division_name, d.id as division_id
+        FROM mode m
+        JOIN divisi d ON m.id_divisi = d.id
+        WHERE m.status = "active" 
+        AND m.id_divisi = :divisionId
+        ORDER BY m.mode
+    ');
+    $modeQuery->execute([':divisionId' => $idDivisi]);
+    $modes = $modeQuery->fetchAll(PDO::FETCH_ASSOC);
+}
+
+//count modes 
+function getModesCount($conn, $divisionId)
+{
+    $stmt = $conn->prepare('SELECT COUNT(*) FROM mode WHERE id_divisi = ?');
+    $stmt->execute([$divisionId]);
+    return $stmt->fetchColumn();
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Echo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #0030D7;
+            --primary-dark: #005A9E;
+            --accent-color: #00BCF2;
+            --background: #F5F5F5;
+            --card-bg: #FFFFFF;
+            --text-primary: #000000;
+            --text-secondary: #616161;
+            --border-color: #E1E1E1;
+            --success-color: #107C10;
+            --warning-color: #FF8C00;
+            --danger-color: #E81123;
+            --info-color: #0078D7;
+
+            /* Metro Color Palette */
+            --metro-blue: #0038D7;
+            --metro-teal: #00B294;
+            --metro-green: #107C10;
+            --metro-yellow: #FFB900;
+            --metro-orange: #E74856;
+            --metro-red: #E81123;
+            --metro-pink: #E3008C;
+            --metro-purple: #6B69D6;
+            --metro-indigo: #8764B8;
+            --metro-gray: #5E5E5E;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--background);
+            color: var(--text-primary);
+        }
+
+        /* Headerrr */
+        .header {
+            background-color: var(--metro-blue);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background-color: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            border-radius: 0;
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: 600;
+            color: white;
+            letter-spacing: -0.5px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background-color: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            border-radius: 0;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 15px;
+            color: white;
+        }
+
+        .user-role {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .logout-btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: none;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border-radius: 0;
+        }
+
+        .logout-btn:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            color: white;
+        }
+
+        /* Welcomeee */
+        .welcome-section {
+            background-color: var(--card-bg);
+            border-radius: 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .welcome-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 8px;
+            height: 100%;
+            background-color: var(--metro-blue);
+        }
+
+        .welcome-title {
+            font-size: 32px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .admin-badge {
+            background-color: var(--metro-orange);
+            color: white;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-transform: uppercase;
+            border-radius: 0;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background-color: var(--background);
+            border-left: 4px solid var(--metro-blue);
+            border-radius: 0;
+        }
+
+        .info-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .info-icon.username {
+            color: var(--metro-blue);
+        }
+
+        .info-icon.division {
+            color: var(--metro-green);
+        }
+
+        .info-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .info-value {
+            font-size: 17px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* Form Sect */
+        .compact-form-section {
+            background-color: var(--card-bg);
+            border-radius: 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .section-title i {
+            color: var(--metro-blue);
+        }
+
+        .form-control,
+        .form-select {
+            border: 2px solid var(--border-color);
+            border-radius: 0;
+            padding: 12px 14px;
+            font-size: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--metro-blue);
+            box-shadow: 0 0 0 0.25rem rgba(0, 120, 215, 0.25);
+        }
+
+        .form-label {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .preview-section {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0;
+            padding: 20px;
+        }
+
+        .preview-section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .preview-section h3::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 14px;
+            background-color: var(--metro-blue);
+            border-radius: 0;
+        }
+
+        .preview-content {
+            background-color: var(--background);
+            padding: 16px;
+            border-radius: 0;
+        }
+
+        .preview-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .preview-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .preview-label {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--metro-blue);
+            min-width: 70px;
+        }
+
+        .preview-value {
+            font-size: 15px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        /* Submit Btns */
+        .form-submit {
+            margin-top: 24px;
+        }
+
+        .submit-btn {
+            background-color: var(--metro-blue);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 15px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .submit-btn:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .submit-btn:disabled {
+            background-color: var(--metro-gray);
+            cursor: not-allowed;
+        }
+
+        .submit-btn .spinner-border {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Preview Tabs */
+        .preview-tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 16px;
+        }
+
+        .preview-tab {
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .preview-tab.active {
+            color: var(--metro-blue);
+            border-bottom-color: var(--metro-blue);
+        }
+
+        .preview-pane {
+            display: none;
+        }
+
+        .preview-pane.active {
+            display: block;
+        }
+
+        .text-preview-content {
+            padding: 16px;
+            background: var(--background);
+        }
+
+        .text-preview-main {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .text-preview-memo {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+
+        .toast {
+            background: var(--card-bg);
+            border: none;
+            border-radius: 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 10px;
+            min-width: 300px;
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--metro-green);
+        }
+
+        .toast.error {
+            border-left: 4px solid var(--metro-red);
+        }
+
+        /* Autocomplete styles */
+        .autocomplete-wrapper {
+            position: relative;
+        }
+
+        .autocomplete-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: none;
+        }
+
+        .autocomplete-results.show {
+            display: block;
+        }
+
+        .autocomplete-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+
+        .autocomplete-item:hover {
+            background-color: var(--background);
+        }
+
+        .autocomplete-item-title {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .autocomplete-item-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        /* a bit of responsive */
+        @media (max-width: 768px) {
+            .user-info {
+                display: none;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr !important;
+            }
+        }
+    </style>
+
+<body>
+    <header class="header py-3">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="logo-icon">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <div class="logo-text">Echo's</div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="user-info d-flex align-items-center gap-3">
+                        <div class="user-avatar">
+                            <?php echo strtoupper(substr($username, 0, 1)); ?>
+                        </div>
+                        <div class="d-flex flex-column">
+                            <div class="user-name"><?php echo htmlspecialchars($firstName ?: $username); ?></div>
+                            <div class="user-role"><?php echo $isAdminAllAccess ? 'Administrator' : 'User'; ?></div>
+                        </div>
+                    </div>
+                    <a href="logout.php" class="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container-fluid my-4">
+        <section class="welcome-section p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1 class="welcome-title">Welcome back, <?php echo htmlspecialchars($firstName ?: $username); ?></h1>
+                <?php if ($isAdminAllAccess): ?>
+                    <div class="admin-badge">
+                        <i class="fas fa-shield-alt"></i>
+                        Administrator
+                    </div>
+                <?php endif; ?>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3 mb-md-0">
+                    <div class="info-item">
+                        <div class="info-icon username">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="d-flex flex-column">
+                            <span class="info-label">Username</span>
+                            <span class="info-value"><?php echo htmlspecialchars($username); ?></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="info-item">
+                        <div class="info-icon division">
+                            <i class="fas fa-building"></i>
+                        </div>
+                        <div class="d-flex flex-column">
+                            <span class="info-label">Division</span>
+                            <span class="info-value"><?php echo htmlspecialchars($divisiName ?: 'No Division Assigned'); ?></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="modes-section">
+            <div class="compact-form-section">
+                <div class="p-4">
+                    <div class="row">
+                        <div class="col-lg-7 mb-4 mb-lg-0">
+                            <h2 class="section-title">
+                                <i class="fas fa-edit"></i>
+                                Input
+                            </h2>
+                            <div class="compact-form">
+                                <div class="row g-1">
+                                    <div class="col-md-4">
+                                        <div class="mb-1">
+                                            <label for="modeInput" class="form-label">Mode</label>
+                                            <select id="modeInput" class="form-select">
+                                                <option value="">Select Mode</option>
+                                                <?php foreach ($modes as $mode): ?>
+                                                    <option value="<?php echo htmlspecialchars($mode['name']); ?>">
+                                                        <?php if ($isAdminAllAccess): ?>
+                                                            <?php echo htmlspecialchars($mode['division_name'] . ' - ' . $mode['name']); ?>
+                                                        <?php else: ?>
+                                                            <?php echo htmlspecialchars($mode['name']); ?>
+                                                        <?php endif; ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-1">
+                                            <label for="object1Input" class="form-label">SKU</label>
+                                            <div class="autocomplete-wrapper">
+                                                <input type="text" id="object1Input" class="form-control" placeholder="Enter SKU" value="">
+                                                <div id="autocompleteResults" class="autocomplete-results"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-1">
+                                            <label for="object2Input" class="form-label">Parameter</label>
+                                            <input type="text" id="object2Input" class="form-control" placeholder="Enter Param" value="---">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-12">
+                                        <div class="mb-3">
+                                            <label for="memoInput" class="form-label">Memo</label>
+                                            <input type="text" id="memoInput" class="form-control" placeholder="Enter memo" value="txt">
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div class="preview-section h-100">
+                                <h3>Current Preview</h3>
+                                <div class="preview-content">
+                                    <div class="preview-tabs">
+                                        <button class="preview-tab" data-tab="detailed">Detailed</button>
+                                        <button class="preview-tab active" data-tab="text">Text</button>
+                                    </div>
+                                    <div class="preview-pane" id="detailedPreview">
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <div class="preview-item">
+                                                    <span class="preview-label">Mode</span>
+                                                    <span>:</span>
+                                                    <span id="modePreview" class="preview-value">---</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="preview-item">
+                                                    <span class="preview-label">SKU</span>
+                                                    <span>:</span>
+                                                    <span id="object1Preview" class="preview-value">---</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="preview-item">
+                                                    <span class="preview-label">Parameter</span>
+                                                    <span>:</span>
+                                                    <span id="object2Preview" class="preview-value">---</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="preview-item">
+                                                    <span class="preview-label">Memo</span>
+                                                    <span>:</span>
+                                                    <span id="memoPreview" class="preview-value">---</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="preview-pane active" id="textPreview">
+                                        <div class="text-preview-content">
+                                            <p class="text-preview-main" id="textPreviewMain">---</p>
+                                            <span style="font-size: 15px; font-style: italic; color:var(--text-secondary);">Memo:</span>
+                                            <p class="text-preview-memo" id="textPreviewMemo">---</p>
+                                        </div>
+                                    </div>
+                                    <div class="form-submit">
+                                        <button type="button" id="submitForm" class="submit-btn">
+                                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                            <span class="button-text">Submit</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="toast-container"></div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="cast.js"></script>
+
+            // Update detailed preview
+            document.getElementById('modePreview').textContent = mode;
+            document.getElementById('object1Preview').textContent = skuFull;
+            document.getElementById('object2Preview').textContent = param;
+            document.getElementById('memoPreview').textContent = memo;
+
+            // Update text preview
+            const mainText = `${mode} ${sku} ${param}`.trim();
+            document.getElementById('textPreviewMain').textContent = mainText || '---';
+            document.getElementById('textPreviewMemo').textContent = memo;
+        }
+
+        function showToast(message, type = 'success') {
+            const toastContainer = document.querySelector('.toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type} show`;
+            toast.setAttribute('role', 'alert');
+            toast.innerHTML = `
+                <div class="toast-header">
+                    <strong class="me-auto">${type === 'success' ? 'Success' : 'Error'}</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body">${message}</div>
+            `;
+            toastContainer.appendChild(toast);
+
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+
+            toast.addEventListener('hidden.bs.toast', () => {
+                toast.remove();
+            });
+        }
+
+        async function submitBroadcast() {
+            const submitBtn = document.getElementById('submitForm');
+            const spinner = submitBtn.querySelector('.spinner-border');
+            const buttonText = submitBtn.querySelector('.button-text');
+
+            const mode = document.getElementById('modeInput').value;
+            const skuInput = document.getElementById('object1Input');
+            const object1 = skuInput.getAttribute('data-sku') || skuInput.value.split(' - ')[0];
+            const object2 = document.getElementById('object2Input').value;
+            const memo = document.getElementById('memoInput').value;
+
+            if (!mode || !object1) {
+                showToast('Please fill in all required fields', 'error');
+                return;
+            }
+
+            try {
+                submitBtn.disabled = true;
+                buttonText.textContent = 'Submitting...';
+                spinner.classList.remove('d-none');
+
+                const response = await fetch('include/submit_broadcast.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        mode,
+                        object1,
+                        object2,
+                        memo
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('Data saved successfully. Code: ' + data.code);
+                    document.getElementById('modeInput').value = '';
+                    document.getElementById('object1Input').value = '';
+                    document.getElementById('object2Input').value = '';
+                    document.getElementById('memoInput').value = '';
+                    updatePreview();
+                } else {
+                    throw new Error(data.message || 'Failed to save data');
+                }
+            } catch (error) {
+                showToast(error.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                buttonText.textContent = 'Submit';
+                spinner.classList.add('d-none');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize elements
+            const skuInput = document.getElementById('object1Input');
+            const resultsContainer = document.createElement('div');
+            resultsContainer.className = 'autocomplete-results';
+            skuInput.parentNode.appendChild(resultsContainer);
+            
+            // Reset form values
+            document.getElementById('modeInput').value = '';
+            document.getElementById('object1Input').value = '';
+            document.getElementById('object2Input').value = '';
+            document.getElementById('memoInput').value = '';
+                const mode = document.getElementById('modeInput').value || '---';
+                const skuFull = skuInput.value || '---';
+                const sku = skuInput.getAttribute('data-sku') || skuFull.split(' - ')[0];
+                const param = document.getElementById('object2Input').value || '---';
+                const memo = document.getElementById('memoInput').value || '---';
+
+                // Update detailed preview
+                document.getElementById('modePreview').textContent = mode;
+                document.getElementById('object1Preview').textContent = skuFull;
+                document.getElementById('object2Preview').textContent = param;
+                document.getElementById('memoPreview').textContent = memo;
+
+                // Update text preview
+                const mainText = `${mode} ${sku} ${param}`.trim();
+                document.getElementById('textPreviewMain').textContent = mainText || '---';
+                document.getElementById('textPreviewMemo').textContent = memo;
+            }
+
+            // Add event listeners for form updates
+            ['modeInput', 'object1Input', 'object2Input', 'memoInput'].forEach(id => {
+                document.getElementById(id).addEventListener('change', updatePreview);
+                document.getElementById(id).addEventListener('input', updatePreview);
+            });
+
+            // Add event listeners for form updates
+            ['modeInput', 'object1Input', 'object2Input', 'memoInput'].forEach(id => {
+                document.getElementById(id).addEventListener('change', updatePreview);
+                document.getElementById(id).addEventListener('input', updatePreview);
+            });
+
+            // SKU Autocomplete handling
+            skuInput.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    const searchValue = this.value.trim();
+                    if (searchValue.length >= 2) {
+                        fetchSuggestions(searchValue);
+                    } else {
+                        resultsContainer.innerHTML = '';
+                        resultsContainer.classList.remove('show');
+                    }
+                }, 300);
+            });
+
+            // Close autocomplete when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!skuInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+                    resultsContainer.classList.remove('show');
+                }
+            });
+
+            function fetchSuggestions(query) {
+                fetch('api/echo.item.php?function=get')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 1 && Array.isArray(data.data)) {
+                            const filteredItems = data.data.filter(item => {
+                                const itemSku = (item.sku || '').toString().toLowerCase();
+                                const itemDesc = (item.description || '').toString().toLowerCase();
+                                const searchQuery = query.toLowerCase();
+                                return itemSku.includes(searchQuery) || itemDesc.includes(searchQuery);
+                            });
+                            displayResults(filteredItems.slice(0, 10));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching suggestions:', error);
+                        showToast('Error fetching suggestions. Please try again.', 'error');
+                    });
+            }
+
+            function displayResults(items) {
+                if (items.length === 0) {
+                    resultsContainer.classList.remove('show');
+                    return;
+                }
+
+                resultsContainer.innerHTML = items.map(item => `
+                    <div class="autocomplete-item" data-sku="${item.sku}" data-description="${item.description || ''}">
+                        <div class="p-2">
+                            <div class="autocomplete-item-title">${item.sku}</div>
+                            ${item.description ? `<div class="autocomplete-item-subtitle">${item.description}</div>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+
+                resultsContainer.classList.add('show');
+
+                // Add click handlers to results
+                resultsContainer.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        const sku = this.dataset.sku;
+                        const description = this.dataset.description;
+                        // Display both SKU and description in input
+                        skuInput.value = description ? `${sku} - ${description}` : sku;
+                        // Store original SKU for form submission
+                        skuInput.setAttribute('data-sku', sku);
+                        resultsContainer.classList.remove('show');
+                        updatePreview();
+                    });
+                });
+            }
+
+            // Tab switching
+            document.querySelectorAll('.preview-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.preview-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.preview-pane').forEach(p => p.classList.remove('active'));
+                    
+                    tab.classList.add('active');
+                    const paneId = tab.dataset.tab === 'detailed' ? 'detailedPreview' : 'textPreview';
+                    document.getElementById(paneId).classList.add('active');
+                });
+            });
+
+            // Submit button handler
+            document.getElementById('submitForm').addEventListener('click', submitBroadcast);
+            });
+
+            function fetchSuggestions(query) {
+                fetch('api/echo.item.php?function=get')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 1 && Array.isArray(data.data)) {
+                            const filteredItems = data.data.filter(item => {
+                                const itemSku = (item.sku || '').toString().toLowerCase();
+                                const itemDesc = (item.description || '').toString().toLowerCase();
+                                const searchQuery = query.toLowerCase();
+
+                                return itemSku.includes(searchQuery) || itemDesc.includes(searchQuery);
+                            });
+                            displayResults(filteredItems.slice(0, 10));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching suggestions:', error);
+                        showToast('Error fetching suggestions. Please try again.', 'error');
+                    });
+            }
+
+            function displayResults(items) {
+                if (items.length === 0) {
+                    resultsContainer.classList.remove('show');
+                    return;
+                }
+
+                resultsContainer.innerHTML = items.map(item => `
+                    <div class="autocomplete-item" data-sku="${item.sku}" data-description="${item.description || ''}">
+                        <div class="p-2">
+                            <div class="autocomplete-item-title">${item.sku}</div>
+                            ${item.description ? `<div class="autocomplete-item-subtitle">${item.description}</div>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+
+                resultsContainer.classList.add('show');
+
+                const resultItems = resultsContainer.querySelectorAll('.autocomplete-item');
+                resultItems.forEach(item => {
+                    item.addEventListener('click', function() {
+                        const sku = this.dataset.sku;
+                        const description = this.dataset.description;
+                        // Tampilkan SKU dan description di form
+                        skuInput.value = description ? `${sku} - ${description}` : sku;
+                        // Simpan SKU asli ke dalam atribut data untuk digunakan saat submit
+                        skuInput.setAttribute('data-sku', sku);
+                        resultsContainer.classList.remove('show');
+                        updatePreview();
+                    });
+                });
+            }
+
+            // Close autocomplete 
+            document.addEventListener('click', function(e) {
+                if (!skuInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+                    resultsContainer.classList.remove('show');
+                }
+            });
+
+            function fetchSuggestions(query) {
+                fetch('api/echo.item.php?function=get')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 1 && Array.isArray(data.data)) {
+                            const filteredItems = data.data.filter(item => {
+                                const itemSku = (item.sku || '').toString().toLowerCase();
+                                const itemDesc = (item.description || '').toString().toLowerCase();
+                                const searchQuery = query.toLowerCase();
+
+                                return itemSku.includes(searchQuery) || itemDesc.includes(searchQuery);
+                            });
+                            displayResults(filteredItems.slice(0, 10)); //max 10
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching suggestions:', error);
+                        showToast('Error fetching suggestions. Please try again.', 'error');
+                    });
+            }
+
+            function displayResults(items) {
+                if (items.length === 0) {
+                    resultsContainer.classList.remove('show');
+                    return;
+                }
+
+                resultsContainer.innerHTML = items.map(item => `
+                    <div class="autocomplete-item" data-sku="${item.sku}" data-description="${item.description || ''}">
+                        <div class="p-2">
+                            <div class="autocomplete-item-title">${item.sku}</div>
+                            ${item.description ? `<div class="autocomplete-item-subtitle">${item.description}</div>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+
+                resultsContainer.classList.add('show');
+
+                const resultItems = resultsContainer.querySelectorAll('.autocomplete-item');
+                resultItems.forEach(item => {
+                    item.addEventListener('click', function() {
+                        const sku = this.dataset.sku;
+                        const description = this.dataset.description;
+                        skuInput.value = `${description} ${sku}`; 
+                        resultsContainer.classList.remove('show');
+                        updatePreview();
+                    });
+                });
+            }
+
+            // tab switcing
+            document.querySelectorAll('.preview-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.preview-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.preview-pane').forEach(p => p.classList.remove('active'));
+
+                    tab.classList.add('active');
+                    const paneId = tab.dataset.tab === 'detailed' ? 'detailedPreview' : 'textPreview';
+                    document.getElementById(paneId).classList.add('active');
+                });
+            });
+
+            document.getElementById('submitForm').addEventListener('click', submitBroadcast);
+
+            updatePreview();
+        
+
+            // SKU Autocomplete handling
+            let debounceTimer;
+            skuInput.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    const searchValue = this.value.trim();
+                    if (searchValue.length >= 2) {
+                        fetchSuggestions(searchValue);
+                    } else {
+                        resultsContainer.innerHTML = '';
+                        resultsContainer.classList.remove('show');
+                    }
+                }, 300);
+            });
+
+            // Close autocomplete when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!skuInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+                    resultsContainer.classList.remove('show');
+                }
+            });
+
+            function fetchSuggestions(query) {
+                fetch('api/echo.item.php?function=get')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 1 && Array.isArray(data.data)) {
+                            const filteredItems = data.data.filter(item => {
+                                const itemSku = (item.sku || '').toString().toLowerCase();
+                                const itemDesc = (item.description || '').toString().toLowerCase();
+                                const searchQuery = query.toLowerCase();
+                                return itemSku.includes(searchQuery) || itemDesc.includes(searchQuery);
+                            });
+                            displayResults(filteredItems.slice(0, 10));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching suggestions:', error);
+                        showToast('Error fetching suggestions. Please try again.', 'error');
+                    });
+            }
+
+            function displayResults(items) {
+                if (items.length === 0) {
+                    resultsContainer.classList.remove('show');
+                    return;
+                }
+
+                resultsContainer.innerHTML = items.map(item => `
+                    <div class="autocomplete-item" data-sku="${item.sku}" data-description="${item.description || ''}">
+                        <div class="p-2">
+                            <div class="autocomplete-item-title">${item.sku}</div>
+                            ${item.description ? `<div class="autocomplete-item-subtitle">${item.description}</div>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+
+                resultsContainer.classList.add('show');
+
+                // Add click handlers to results
+                resultsContainer.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        const sku = this.dataset.sku;
+                        const description = this.dataset.description;
+                        // Display both SKU and description in input
+                        skuInput.value = description ? `${sku} - ${description}` : sku;
+                        // Store original SKU for form submission
+                        skuInput.setAttribute('data-sku', sku);
+                        resultsContainer.classList.remove('show');
+                        updatePreview();
+                    });
+                });
+            }
+
+            // Tab switching
+            document.querySelectorAll('.preview-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.preview-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.preview-pane').forEach(p => p.classList.remove('active'));
+                    
+                    tab.classList.add('active');
+                    const paneId = tab.dataset.tab === 'detailed' ? 'detailedPreview' : 'textPreview';
+                    document.getElementById(paneId).classList.add('active');
+                });
+            });
+
+            // Submit button handler
+            document.getElementById('submitForm').addEventListener('click', submitBroadcast);
+
+        function showToast(message, type = 'success') {
+            const toastContainer = document.querySelector('.toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type} show`;
+            toast.setAttribute('role', 'alert');
+            toast.innerHTML = `
+                <div class="toast-header">
+                    <strong class="me-auto">${type === 'success' ? 'Success' : 'Error'}</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body">${message}</div>
+            `;
+            toastContainer.appendChild(toast);
+
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+
+            toast.addEventListener('hidden.bs.toast', () => {
+                toast.remove();
+            });
+        }
+
+        async function submitBroadcast() {
+            const submitBtn = document.getElementById('submitForm');
+            const spinner = submitBtn.querySelector('.spinner-border');
+            const buttonText = submitBtn.querySelector('.button-text');
+
+            // Get values from form
+            const mode = document.getElementById('modeInput').value;
+            // Get original SKU from data attribute if exists, otherwise use input value
+            const rawValue = skuInput.value;
+            const object1 = skuInput.getAttribute('data-sku') || rawValue.split(' - ')[0];
+            const object2 = document.getElementById('object2Input').value;
+            const memo = document.getElementById('memoInput').value;
+
+            // tost
+            if (!mode || !object1) {
+                showToast('Please fill in all required fields', 'error');
+                return;
+            }
+
+            try {
+                // loading
+                submitBtn.disabled = true;
+                buttonText.textContent = 'Submitting...';
+                spinner.classList.remove('d-none');
+
+                const response = await fetch('include/submit_broadcast.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        mode,
+                        object1,
+                        object2,
+                        memo
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('Data saved successfully. Code: ' + data.code);
+
+                    // Reset form
+                    document.getElementById('modeInput').value = '';
+                    document.getElementById('object1Input').value = '';
+                    document.getElementById('object2Input').value = '';
+                    document.getElementById('memoInput').value = '';
+                    updatePreview();
+                } else {
+                    throw new Error(data.message || 'Failed to save data');
+                }
+            } catch (error) {
+                showToast(error.message, 'error');
+            } finally {
+                // Reset button state
+                submitBtn.disabled = false;
+                buttonText.textContent = 'Submit';
+                spinner.classList.add('d-none');
+            }
+        }
+
+        function toggleMode(modeId) {
+            if (!confirm('Are you sure you want to change this mode\'s status?')) {
+                return;
+            }
+
+            fetch('api/toggle_mode.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        modeId: modeId
+                    })
+                })
+                .then(async response => {
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Server error: ' + response.status);
+                    }
+                    return data;
+                })
+                .then(data => {
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        alert(data.message || 'Failed to update mode status');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error updating mode status: ' + error.message);
+                });
+        }
+    </script>
+</body>
+
+</html>
