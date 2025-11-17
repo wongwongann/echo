@@ -21,29 +21,15 @@ if ($idDivisi) {
     $divisiName = $row['divisi'] ?? '';
 }
 
-// is admin?
-$isAdmin = false;
-if (strcasecmp(trim($username), 'it') === 0 && strcasecmp(trim($divisiName), 'it') === 0) {
-    $isAdmin = true;
-}
-
 // divs list for filters
 $divisions = [];
-if ($isAdmin) {
-    $divQuery = $conn->query('SELECT id, divisi FROM divisi ORDER BY divisi');
-    $divisions = $divQuery->fetchAll(PDO::FETCH_ASSOC);
-}
+$divQuery = $conn->query('SELECT id, divisi FROM divisi ORDER BY divisi');
+$divisions = $divQuery->fetchAll(PDO::FETCH_ASSOC);
 
 // modes list for filters
 $modes = [];
-if ($isAdmin) {
-    $modeQuery = $conn->query('SELECT id, mode FROM mode WHERE status = "active" ORDER BY mode');
-    $modes = $modeQuery->fetchAll(PDO::FETCH_ASSOC);
-} else {
-    $modeQuery = $conn->prepare('SELECT id, mode FROM mode WHERE status = "active" AND id_divisi = :divisionId ORDER BY mode');
-    $modeQuery->execute([':divisionId' => $idDivisi]);
-    $modes = $modeQuery->fetchAll(PDO::FETCH_ASSOC);
-}
+$modeQuery = $conn->query('SELECT id, mode FROM mode WHERE status = "active" ORDER BY mode');
+$modes = $modeQuery->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -970,7 +956,7 @@ if ($isAdmin) {
                 </div>
                 <div class="user-info">
                     <div class="user-name"><?php echo htmlspecialchars($firstName ?: $username); ?></div>
-                    <div class="user-role"><?php echo $isAdmin ? 'Administrator' : 'User'; ?></div>
+                    <div class="user-role">User</div>
                 </div>
                 <a href="logout.php" class="logout-btn">
                     <i class="fas fa-sign-out-alt"></i>
@@ -1005,7 +991,6 @@ if ($isAdmin) {
                         <label class="filter-label">Date Range To</label>
                         <input type="date" id="filterDateTo" class="filter-control">
                     </div>
-                    <?php if ($isAdmin): ?>
                     <div class="filter-group">
                         <label class="filter-label">Division</label>
                         <select id="filterDivision" class="filter-control">
@@ -1017,7 +1002,7 @@ if ($isAdmin) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <?php endif; ?>
+                
                     <div class="filter-group">
                         <label class="filter-label">Mode</label>
                         <select id="filterMode" class="filter-control">
@@ -1052,9 +1037,7 @@ if ($isAdmin) {
                             <th>Code</th>
                             <th>SKU</th>
                             <th>Description</th>
-                            <?php if ($isAdmin): ?>
                             <th>Division</th>
-                            <?php endif; ?>
                             <th>Mode</th>
                             <th>Param</th>
                             <th>Name</th>
@@ -1103,11 +1086,8 @@ if ($isAdmin) {
                     { data: 'date_time', width: '15%' },
                     { data: 'code', width: '10%' },
                     { data: 'sku', width: '8%' },
-                    { data: 'item_description', width: '15%' }
-                    <?php if ($isAdmin): ?>  
-                     , { data: 'division_name', width: '10%' }
-                    <?php endif; ?>
-                    , 
+                    { data: 'item_description', width: '15%' },
+                    { data: 'division_name', width: '10%' },
                     { data: 'mode', width: '10%' },
                     { data: 'param', width: '8%' },
                     { data: 'first_name', width: '8%' },
@@ -1344,15 +1324,12 @@ if ($isAdmin) {
 
             // Helper: get field name by column index
             function getFieldNameByIndex(index) {
-                let totalColumns = $('#broadcastTable thead tr th').length;
-                let isAdminView = totalColumns === 10;
-
-                const adminFieldMap = {
+                const fieldMap = {
                     0: 'date_time',           // Date
                     1: 'code',                 // Code
                     2: 'sku',                  // SKU
                     3: 'item_description',     // Description
-                    4: 'division_name',        // Division (admin only)
+                    4: 'division_name',        // Division
                     5: 'mode',                 // Mode
                     6: 'param',                // Param
                     7: 'first_name',           // Name
@@ -1360,21 +1337,7 @@ if ($isAdmin) {
                     9: 'is_published'          // Status
                 };
 
-                const nonAdminFieldMap = {
-                    0: 'date_time',           // Date
-                    1: 'code',                 // Code
-                    2: 'sku',                  // SKU
-                    3: 'item_description',     // Description
-                    4: 'mode',                 // Mode
-                    5: 'param',                // Param
-                    6: 'first_name',           // Name
-                    7: 'memo',                 // Memo
-                    8: 'is_published'          // Status
-                };
-                
-                let fieldMap = isAdminView ? adminFieldMap : nonAdminFieldMap;
-                
-                // Map display names ke actual db fields untuk editable
+                // Map display names to actual db fields untuk editable
                 const dbFieldMap = {
                     'code': 'code',
                     'mode': 'mode',

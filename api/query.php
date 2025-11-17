@@ -24,7 +24,6 @@ $stmt = $conn->prepare('SELECT divisi FROM divisi WHERE id = :id LIMIT 1');
 $stmt->execute([':id' => $idDivisi]);
 $row = $stmt->fetch();
 $divisiName = $row['divisi'] ?? '';
-$isAdmin = (strcasecmp(trim($username), 'it') === 0 && strcasecmp(trim($divisiName), 'it') === 0);
 
 try {
     // DtTables parameters
@@ -85,11 +84,6 @@ try {
     $whereConditions = [];
     $params = [];
 
-    if (!$isAdmin) {
-        $whereConditions[] = "m.id_divisi = ?";
-        $params[] = $idDivisi;
-    }
-
     // Search filter
     if (!empty($search)) {
         $searchTerm = "%{$search}%";
@@ -107,8 +101,8 @@ try {
         $params[] = $dateTo;
     }
 
-    // DivS filter
-    if (!empty($filterDivision) && $isAdmin) {
+    // Division filter
+    if (!empty($filterDivision)) {
         $whereConditions[] = "d.divisi = ?";
         $params[] = $filterDivision;
     }
@@ -140,20 +134,11 @@ try {
     $totalQuery = "SELECT COUNT(*) as total FROM broadcast b LEFT JOIN mode m ON m.mode = b.mode";
     $totalParams = [];
     
-    if (!$isAdmin) {
-        $totalQuery .= " WHERE m.id_divisi = ?";
-        $totalParams[] = $idDivisi;
-    }
-    
     $totalStmt = $conn->prepare($totalQuery);
     $totalStmt->execute($totalParams);
     $totalCount = $totalStmt->fetch()['total'] ?? 0;
 
-    $orderColumns = ['b.date_created', 'b.code', 'b.sku', 'i.description', 'b.mode'];
-    if ($isAdmin) {
-        array_splice($orderColumns, 5, 0, ['d.divisi']);
-    }
-    $orderColumns = array_merge($orderColumns, ['u.first_name', 'b.param', 'b.memo', 'is_published']);
+    $orderColumns = ['b.date_created', 'b.code', 'b.sku', 'i.description', 'd.divisi', 'b.mode', 'b.param', 'u.first_name', 'b.memo', 'is_published'];
 
     $orderColumnName = $orderColumns[$orderColumn] ?? 'b.date_created';
     $baseQuery .= " ORDER BY {$orderColumnName} {$orderDir}";
