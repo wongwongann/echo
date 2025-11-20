@@ -42,6 +42,7 @@ $modes = $modeQuery->fetchAll(PDO::FETCH_ASSOC);
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
     <style>
         :root {
             --primary-bg: #0f172a;
@@ -1061,6 +1062,10 @@ $modes = $modeQuery->fetchAll(PDO::FETCH_ASSOC);
     <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
     <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
     <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.0/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.0/vfs_fonts.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
 
     <script>
         $(document).ready(function() {
@@ -1122,7 +1127,19 @@ $modes = $modeQuery->fetchAll(PDO::FETCH_ASSOC);
                 autoWidth: false,
                 pageLength: 25,
                 order: [[0, 'desc']],
-                dom: '<"d-flex justify-content-between align-items-center mb-3"lf>rt<"d-flex justify-content-between align-items-center mt-3"ip>'
+                dom: '<"d-flex justify-content-between align-items-center mb-3"Blf>rt<"d-flex justify-content-between align-items-center mt-3"ip>',
+                buttons: [
+                    {
+                        extend: 'excel',
+                        text: '<i class="fas fa-file-excel"></i> Export Excel',
+                        className: 'btn btn-success btn-sm',
+                        title: 'Inpo ide Judul',
+                        filename: 'broadcast_query_' + new Date().toISOString().split('T')[0],
+                        exportOptions: {
+                            columns: ':visible'
+                        }
+                    }
+                ]
             });
 
             // insert = edit tggle

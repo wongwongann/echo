@@ -7,3 +7,43 @@
 [17-Nov-2025 06:27:29 Europe/London] PHP Warning:  Undefined variable $isAdmin in C:\UniServerZ\www\echo\api\query.php on line 134
 [17-Nov-2025 06:28:15 Europe/London] PHP Warning:  Undefined variable $isAdmin in C:\UniServerZ\www\echo\api\query.php on line 134
 [17-Nov-2025 06:28:28 Europe/London] PHP Warning:  Undefined variable $isAdmin in C:\UniServerZ\www\echo\api\query.php on line 134
+[18-Nov-2025 00:40:43 Europe/London] Auth Debug - Username: it, Divisi: IT
+[18-Nov-2025 00:40:43 Europe/London] Auth Debug - Lowercase comparison - Username: it, Divisi: it
+[18-Nov-2025 00:40:43 Europe/London] Auth Debug - Admin access granted
+[18-Nov-2025 01:01:18 Europe/London] Auth Debug - Username: it, Divisi: IT
+[18-Nov-2025 01:01:18 Europe/London] Auth Debug - Lowercase comparison - Username: it, Divisi: it
+[18-Nov-2025 01:01:18 Europe/London] Auth Debug - Admin access granted
+[18-Nov-2025 03:34:38 Europe/London] Auth Debug - Username: it, Divisi: IT
+[18-Nov-2025 03:34:38 Europe/London] Auth Debug - Lowercase comparison - Username: it, Divisi: it
+[18-Nov-2025 03:34:38 Europe/London] Auth Debug - Admin access granted
+[18-Nov-2025 07:29:56 Europe/London] Auth Debug - Username: tes, Divisi: BAHAN BAKU
+[18-Nov-2025 07:29:56 Europe/London] Auth Debug - Lowercase comparison - Username: tes, Divisi: bahan baku
+[18-Nov-2025 07:29:56 Europe/London] Auth Debug - Admin access denied
+[18-Nov-2025 20:15:17 Europe/London] Auth Debug - Username: it, Divisi: IT
+[18-Nov-2025 20:15:17 Europe/London] Auth Debug - Lowercase comparison - Username: it, Divisi: it
+[18-Nov-2025 20:15:17 Europe/London] Auth Debug - Admin access granted
+[18-Nov-2025 20:15:36 Europe/London] Auth Debug - Username: it, Divisi: IT
+[18-Nov-2025 20:15:36 Europe/London] Auth Debug - Lowercase comparison - Username: it, Divisi: it
+[18-Nov-2025 20:15:36 Europe/London] Auth Debug - Admin access granted
+[18-Nov-2025 20:36:19 Europe/London] Auth Debug - Username: it, Divisi: IT
+[18-Nov-2025 20:36:19 Europe/London] Auth Debug - Lowercase comparison - Username: it, Divisi: it
+[18-Nov-2025 20:36:19 Europe/London] Auth Debug - Admin access granted
+[19-Nov-2025 00:36:53 Europe/London] Auth Debug - Username: it, Divisi: IT
+[19-Nov-2025 00:36:53 Europe/London] Auth Debug - Lowercase comparison - Username: it, Divisi: it
+[19-Nov-2025 00:36:53 Europe/London] Auth Debug - Admin access granted
+[19-Nov-2025 01:17:59 Europe/London] PHP Fatal error:  Uncaught Error: Call to undefined function finfo_open() in C:\UniServerZ\www\echo\api\profile.php:50
+Stack trace:
+#0 {main}
+  thrown in C:\UniServerZ\www\echo\api\profile.php on line 50
+[19-Nov-2025 02:06:06 Europe/London] Auth Debug - Username: it, Divisi: IT
+[19-Nov-2025 02:06:06 Europe/London] Auth Debug - Lowercase comparison - Username: it, Divisi: it
+[19-Nov-2025 02:06:06 Europe/London] Auth Debug - Admin access granted
+[20-Nov-2025 00:39:38 Europe/London] Auth Debug - Username: it, Divisi: IT
+[20-Nov-2025 00:39:38 Europe/London] Auth Debug - Lowercase comparison - Username: it, Divisi: it
+[20-Nov-2025 00:39:38 Europe/London] Auth Debug - Admin access granted
+[20-Nov-2025 01:19:54 Europe/London] Auth Debug - Username: it, Divisi: IT
+[20-Nov-2025 01:19:54 Europe/London] Auth Debug - Lowercase comparison - Username: it, Divisi: it
+[20-Nov-2025 01:19:54 Europe/London] Auth Debug - Admin access granted
+[20-Nov-2025 01:22:17 Europe/London] Auth Debug - Username: it, Divisi: IT
+[20-Nov-2025 01:22:17 Europe/London] Auth Debug - Lowercase comparison - Username: it, Divisi: it
+[20-Nov-2025 01:22:17 Europe/London] Auth Debug - Admin access granted

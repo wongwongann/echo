@@ -909,23 +909,19 @@ try {
                                                         title="Edit Mode">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
-                                                    <button class="btn btn-sm btn-danger delete-mode"
+                                                    <!-- <button class="btn btn-sm btn-danger delete-mode"
                                                         data-id="<?= $mode['id'] ?>"
                                                         data-mode="<?= htmlspecialchars($mode['mode']) ?>"
                                                         title="Delete Mode">
                                                         <i class="fas fa-trash"></i>
-                                                    </button>
+                                                    </button> -->
                                                 </div>
                                             </td>
                                         </tr>
                                     <?php
                                     endforeach;
-                                else:
-                                    ?>
-                                    <tr>
-                                        <td colspan="<?= $isAdmin ? 5 : 4 ?>" class="text-center">No modes found</td>
-                                    </tr>
-                                <?php endif; ?>
+                                endif;
+                                ?>
                             </tbody>
                         </table>
                     </div>
@@ -1128,7 +1124,7 @@ try {
                 language: {
                     search: "Search:",
                     lengthMenu: "Show _MENU_ entries",
-                    zeroRecords: "No matching records found",
+                    zeroRecords: "No records available",
                     info: "Showing page _PAGE_ of _PAGES_",
                     infoEmpty: "No records available",
                     infoFiltered: "(filtered from _MAX_ total entries)",
